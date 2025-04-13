@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart'; // Pour mobile
+import 'package:image_picker_web/image_picker_web.dart'; // Pour web
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'product_model.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -15,61 +20,65 @@ class _AddProductPageState extends State<AddProductPage> {
   final _descController = TextEditingController();
   final _priceController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
-  File? _productImage;
+
+  File? _productImageFile;
+  Uint8List? _productImageWeb;
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _productImage = File(pickedFile.path);
-      });
+    if (kIsWeb) {
+      final pickedFile = await ImagePickerWeb.getImageAsBytes();
+      if (pickedFile != null) {
+        setState(() => _productImageWeb = pickedFile);
+      }
+    } else {
+      final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        setState(() => _productImageFile = File(pickedFile.path));
+      }
     }
+  }
+
+  Widget _buildImagePreview() {
+    if (kIsWeb) {
+      return _productImageWeb != null
+          ? Image.memory(_productImageWeb!, fit: BoxFit.cover)
+          : _buildPlaceholder();
+    } else {
+      return _productImageFile != null
+          ? Image.file(_productImageFile!, fit: BoxFit.cover)
+          : _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.add_photo_alternate, size: 50, color: Colors.grey.shade400),
+        const SizedBox(height: 10),
+        const Text("Ajouter une photo", style: TextStyle(fontSize: 16)),
+        const SizedBox(height: 5),
+        Text("Cliquez pour sélectionner",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+      ],
+    );
   }
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      // Simulation d'envoi des données
-      _showSuccessDialog();
+      final newProduct = Product(
+        id: Product.generateId(),
+        name: _nameController.text,
+        description: _descController.text,
+        price: double.parse(_priceController.text),
+        quantity: int.parse(_quantityController.text),
+        image: kIsWeb ? _productImageWeb : _productImageFile,
+        createdAt: DateTime.now(),
+      );
+
+      Navigator.pop(context, newProduct);
     }
-  }
-
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green),
-            SizedBox(width: 10),
-            Text("Succès"),
-          ],
-        ),
-        content: const Text("Le produit a été ajouté avec succès"),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _resetForm();
-            },
-            child: const Text("OK"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _resetForm() {
-    _nameController.clear();
-    _descController.clear();
-    _priceController.clear();
-    _quantityController.text = '1';
-    setState(() {
-      _productImage = null;
-    });
   }
 
   @override
@@ -77,20 +86,12 @@ class _AddProductPageState extends State<AddProductPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Nouveau Produit Agricole"),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.green.shade800,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        shape: const Border(
-          bottom: BorderSide(
-            color: Colors.grey,
-            width: 0.2,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: _submit,
           ),
-        ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -99,108 +100,78 @@ class _AddProductPageState extends State<AddProductPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Section photo avec effet de profondeur
-              Card(
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: InkWell(
-                  onTap: _pickImage,
-                  borderRadius: BorderRadius.circular(15),
-                  child: Container(
-                    height: 200,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(15),
-                      color: Colors.grey.shade50,
-                    ),
-                    child: _productImage == null
-                        ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.add_photo_alternate,
-                          size: 50,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          "Ajouter une photo du produit",
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          "Cliquez pour sélectionner",
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    )
-                        : Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
-                          child: Image.file(
-                            _productImage!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 10,
-                          right: 10,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.edit,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+              // Section photo
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.shade100,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: _buildImagePreview(),
                   ),
                 ),
               ),
               const SizedBox(height: 30),
 
-              // Section formulaire
-              _buildFormSection(),
-
-              // Bouton d'ajout
-              Padding(
-                padding: const EdgeInsets.only(top: 20, bottom: 10),
-                child: ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Colors.green.shade700,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                    shadowColor: Colors.green.shade300,
-                  ),
-                  child: const Text(
-                    "PUBLIER LE PRODUIT",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+              // Formulaire
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: "Nom du produit",
+                  prefixIcon: Icon(Icons.shopping_basket),
                 ),
+                validator: (value) => value?.isEmpty ?? true ? "Requis" : null,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _priceController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Prix (FCFA)",
+                  prefixIcon: Icon(Icons.attach_money),
+                ),
+                validator: (value) {
+                  if (value?.isEmpty ?? true) return "Requis";
+                  if (double.tryParse(value!) == null) return "Prix invalide";
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Quantité",
+                  prefixIcon: Icon(Icons.format_list_numbered),
+                ),
+                validator: (value) {
+                  if (value?.isEmpty ?? true) return "Requis";
+                  if (int.tryParse(value!) == null) return "Nombre invalide";
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _descController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: "Description",
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.description),
+                ),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: _submit,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.green,
+                ),
+                child: const Text("PUBLIER LE PRODUIT"),
               ),
             ],
           ),
@@ -209,116 +180,12 @@ class _AddProductPageState extends State<AddProductPage> {
     );
   }
 
-  Widget _buildFormSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Nom du produit
-        _buildInputField(
-          controller: _nameController,
-          label: "Nom du produit",
-          icon: Icons.shopping_basket,
-          validator: (value) => value == null || value.isEmpty ? "Ce champ est requis" : null,
-        ),
-        const SizedBox(height: 20),
-
-        // Prix
-        _buildInputField(
-          controller: _priceController,
-          label: "Prix (FCFA)",
-          icon: Icons.attach_money,
-          keyboardType: TextInputType.number,
-          validator: (value) => value == null || value.isEmpty ? "Ce champ est requis" : null,
-        ),
-        const SizedBox(height: 20),
-
-        // Quantité
-        _buildInputField(
-          controller: _quantityController,
-          label: "Quantité disponible",
-          icon: Icons.format_list_numbered,
-          keyboardType: TextInputType.number,
-          validator: (value) {
-            if (value == null || value.isEmpty) return "Ce champ est requis";
-            if (int.tryParse(value) == null) return "Entrez un nombre valide";
-            return null;
-          },
-        ),
-        const SizedBox(height: 20),
-
-        // Description
-        TextFormField(
-          controller: _descController,
-          maxLines: 4,
-          decoration: InputDecoration(
-            labelText: "Description détaillée",
-            labelStyle: TextStyle(
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w500,
-            ),
-            alignLabelWithHint: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.green.shade700, width: 1.5),
-            ),
-            prefixIcon: Icon(
-              Icons.description,
-              color: Colors.grey.shade600,
-            ),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-          ),
-          style: TextStyle(color: Colors.grey.shade800),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInputField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    FormFieldValidator<String>? validator,
-    TextInputType? keyboardType,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          color: Colors.grey.shade700,
-          fontWeight: FontWeight.w500,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.green.shade700, width: 1.5),
-        ),
-        prefixIcon: Icon(
-          icon,
-          color: Colors.grey.shade600,
-        ),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-      ),
-      style: TextStyle(color: Colors.grey.shade800),
-      validator: validator,
-    );
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    _priceController.dispose();
+    _quantityController.dispose();
+    super.dispose();
   }
 }
