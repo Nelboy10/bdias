@@ -7,7 +7,7 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Abdias 🌱',
+        title: const Text('Agi 🌱',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 24,
@@ -36,7 +36,7 @@ class HomePage extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               image: DecorationImage(
-                image: AssetImage('assets/images/farm1.jpeg'),
+                image: AssetImage('assets/images/farm.jpeg'),
                 fit: BoxFit.cover,
                 colorFilter: ColorFilter.mode(
                   Colors.black.withOpacity(0.3),
